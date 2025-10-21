@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "*" ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bash-lint:
+    name: Lint & Validate Bash
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install linters (shellcheck, shfmt)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends shellcheck curl
+          curl -sSL "https://github.com/mvdan/sh/releases/latest/download/shfmt_linux_amd64" -o /usr/local/bin/shfmt
+          chmod +x /usr/local/bin/shfmt
+          shellcheck --version
+          shfmt -version
+
+      - name: List shell files
+        id: list
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 1) Explicit *.sh files (exclude venvs)
+          mapfile -t SCRIPTS < <(git ls-files '*.sh' ':!:**/.venv/**' ':!:**/venv/**' || true)
+
+          # 2) Any file with a shebang (exclude virtual envs, minified/vendor paths if any)
+          mapfile -t SHEBANG < <(
+            git ls-files \
+              | xargs -r grep -Il '^[[:space:]]*#!' \
+              | grep -Ev '(^$|/\.venv/|/venv/)' \
+              || true
+          )
+
+          {
+            echo "scripts<<EOF"
+            printf '%s\n' "${SCRIPTS[@]}"
+            echo "EOF"
+            echo "shebang<<EOF"
+            printf '%s\n' "${SHEBANG[@]}"
+            echo "EOF"
+          } >>"$GITHUB_OUTPUT"
+
+          if [ "${#SCRIPTS[@]}" -eq 0 ] && [ "${#SHEBANG[@]}" -eq 0 ]; then
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            echo "No shell files found; skipping."
+          fi
+
+      - name: shellcheck (*.sh only)
+        if: steps.list.outputs.scripts != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            echo "::group::shellcheck $f"
+            shellcheck "$f"
+            echo "::endgroup::"
+          done <<< "${{ steps.list.outputs.scripts }}"
+
+      - name: bash -n syntax check (*.sh only)
+        if: steps.list.outputs.scripts != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            echo "::group::bash -n $f"
+            bash -n "$f"
+            echo "::endgroup::"
+          done <<< "${{ steps.list.outputs.scripts }}"
+
+      - name: shfmt (style check, repo root)
+        if: |
+          steps.list.outputs.scripts != '' || steps.list.outputs.shebang != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Show diff if formatting would change; fail on diff.
+          # Indent 2, case-indent on, binary ops next line.
+          shfmt -d -i 2 -ci -bn .
+
+      - name: Ensure shebang files are executable
+        if: steps.list.outputs.shebang != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            if [ ! -x "$f" ]; then
+              echo "::error file=$f::Shebang file is not executable (run: chmod +x $f)"
+              failed=1
+            fi
+          done <<< "${{ steps.list.outputs.shebang }}"
+          exit $failed
