@@ -1,0 +1,29 @@
+# Logs & data
+*.log
+*.csv
+*.jsonl
+logs/
+.local/
+.state/
+tmp/
+cache/
+
+# Python junk
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors/IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Systemd generated wants folders
+*.timer.wants/
+*.service.wants/
+
+# OS cruft
+.DS_Store
+Thumbs.db

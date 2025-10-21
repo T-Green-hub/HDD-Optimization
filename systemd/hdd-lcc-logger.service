@@ -1,0 +1,17 @@
+[Unit]
+Description=HDD LCC logger (user, oneshot)
+Documentation=man:smartctl(8)
+
+[Service]
+Type=oneshot
+ExecStart=%h/projects/hdd-optimizer/scripts/lcc_log_once.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Hardening (optional but recommended)
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=%h/.local/share/hdd-watch
+
+# No [Install] section needed; the timer will be enabled instead.

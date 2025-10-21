@@ -1,0 +1,14 @@
+[Unit]
+Description=HDD LCC alert check
+
+[Service]
+Type=oneshot
+# Optional thresholds:
+# Environment=LCC_ALERT_DELTA=10
+# Environment=LCC_ALERT_RATE=120
+ExecStart=%h/projects/hdd-optimizer/scripts/lcc_alert.sh
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+ReadWritePaths=%h/.local/share/hdd-watch

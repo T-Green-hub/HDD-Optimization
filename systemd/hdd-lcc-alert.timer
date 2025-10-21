@@ -1,0 +1,10 @@
+[Unit]
+Description=Run HDD LCC alert check every 10 minutes
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+Unit=hdd-lcc-alert.service
+
+[Install]
+WantedBy=timers.target
